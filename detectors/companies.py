@@ -42,6 +42,26 @@ class CompanyDetector:
         esc_items = [re.escape(item) for item in sorted(self.gazetteer, key=len, reverse=True)]
         self.gazetteer_pattern = re.compile(rf'(?<![@\w])\b({"|".join(esc_items)})\b(?![@\w])', re.IGNORECASE) if esc_items else None
 
+    def _is_inside_email(self, text: str, start: int, end: int) -> bool:
+        """Check if the span is actually part of an email address.
+        
+        Returns True only if @ is inside the span itself, or immediately
+        adjacent to it with no whitespace/punctuation gap (i.e. the span
+        is literally a substring of an email token like 'infosys' in
+        'info@infosys.com'). Does NOT trigger for spans that merely happen
+        to be near an email in the same text block.
+        """
+        # Check for @ inside the span
+        if "@" in text[start:end]:
+            return True
+        # Check immediately before span (e.g. "user@|infosys|.com")
+        if start > 0 and text[start - 1] == "@":
+            return True
+        # Check immediately after span (e.g. "info|@|domain.com" — span ends at @)
+        if end < len(text) and text[end] == "@":
+            return True
+        return False
+
     def detect(self, text: str) -> List[DetectionResult]:
         if not text or not text.strip():
             return []
@@ -63,10 +83,9 @@ class CompanyDetector:
                 if ent_text in self.exclusions or ent_text.lower() in COMPANY_STOPLIST:
                     continue
 
-                # Skip if part of an email address
-                context_start = max(0, start - 15)
-                context_end = min(len(text), end + 15)
-                if "@" in text[context_start:context_end]:
+                # Skip if the span is actually part of an email address
+                # (@ inside span or immediately adjacent with no whitespace gap)
+                if self._is_inside_email(text, start, end):
                     continue
 
                 raw_entities.append((start, end, 1.0))
@@ -85,9 +104,7 @@ class CompanyDetector:
             if ent_text.lower() in COMPANY_STOPLIST:
                 continue
 
-            context_start = max(0, start - 15)
-            context_end = min(len(text), end + 15)
-            if "@" in text[context_start:context_end]:
+            if self._is_inside_email(text, start, end):
                 continue
 
             score = float(ent.get("score", 0.8))
