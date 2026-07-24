@@ -46,23 +46,23 @@
 
 ## Benchmark Evolution Across Iterations
 
-| PII Type | Metric | Stage 1: spaCy `en_core_web_sm` | Stage 2: GLiNER Baseline | Stage 3: Baseline Refinements | Stage 4: Empirical FP Fixes | Stage 5 (Final): PIN-City Merge | Overall Delta (Stage 1 → 5) |
-|---|---|---|---|---|---|---|---|
-| **NAME** | Precision | 0.562 | 0.464 | 0.464 | **0.918** | **0.918** | **+35.6%** |
-| | Recall | 0.574 | **0.957** | **0.957** | **0.957** | **0.957** | **+38.3%** |
-| | **F1 Score** | 0.568 | 0.625 | 0.625 | **0.938** | **0.938** | **+37.0%** |
-| **COMPANY** | Precision | 0.481 | 0.722 | 0.489 | **1.000** | **1.000** | **+51.9%** |
-| | Recall | 0.520 | 0.520 | **0.920** | **0.920** | **0.920** | **+40.0%** |
-| | **F1 Score** | 0.500 | 0.605 | 0.639 | **0.958** | **0.958** | **+45.8%** |
-| **ADDRESS** | Precision | 0.250 | 0.727 | 0.727 | 0.727 | **1.000** | **+75.0%** |
-| | Recall | 0.125 | 0.667 | 0.667 | 0.667 | **1.000** | **+87.5%** |
-| | **F1 Score** | 0.167 | 0.696 | 0.696 | 0.696 | **1.000** | **+499.4%** |
-| **EMAIL** | Precision | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.0% |
-| | Recall | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.0% |
-| | **F1 Score** | 1.000 | 1.000 | 1.000 | 1.000 | **1.000** | 0.0% |
-| **OVERALL** | Precision | 0.604 | 0.609 | 0.568 | 0.915 | **0.967** | **+36.3%** |
-| | Recall | 0.558 | 0.817 | **0.900** | 0.900 | **0.967** | **+40.9%** |
-| | **F1 Score** | 0.580 | 0.698 | 0.697 | 0.908 | **0.967** | **+38.7%** |
+| PII Type | Metric | Stage 1: spaCy `en_core_web_sm` | Stage 2: GLiNER Baseline | Stage 3: Baseline Refinements | Stage 4: Empirical FP Fixes | Stage 5: PIN-City Merge | Stage 6 (Final): Email Filter Fix | Overall Delta (Stage 1 → 6) |
+|---|---|---|---|---|---|---|---|---|
+| **NAME** | Precision | 0.562 | 0.464 | 0.464 | **0.918** | **0.918** | **0.918** | **+35.6%** |
+| | Recall | 0.574 | **0.957** | **0.957** | **0.957** | **0.957** | **0.957** | **+38.3%** |
+| | **F1 Score** | 0.568 | 0.625 | 0.625 | **0.938** | **0.938** | **0.938** | **+37.0%** |
+| **COMPANY** | Precision | 0.481 | 0.722 | 0.489 | **1.000** | **1.000** | **1.000** | **+51.9%** |
+| | Recall | 0.520 | 0.520 | **0.920** | **0.920** | **0.920** | **0.960** | **+44.0%** |
+| | **F1 Score** | 0.500 | 0.605 | 0.639 | **0.958** | **0.958** | **0.980** | **+48.0%** |
+| **ADDRESS** | Precision | 0.250 | 0.727 | 0.727 | 0.727 | **1.000** | **1.000** | **+75.0%** |
+| | Recall | 0.125 | 0.667 | 0.667 | 0.667 | **1.000** | **1.000** | **+87.5%** |
+| | **F1 Score** | 0.167 | 0.696 | 0.696 | 0.696 | **1.000** | **1.000** | **+499.4%** |
+| **EMAIL** | Precision | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.0% |
+| | Recall | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.0% |
+| | **F1 Score** | 1.000 | 1.000 | 1.000 | 1.000 | **1.000** | **1.000** | 0.0% |
+| **OVERALL** | Precision | 0.604 | 0.609 | 0.568 | 0.915 | 0.967 | **0.967** | **+36.3%** |
+| | Recall | 0.558 | 0.817 | **0.900** | 0.900 | 0.967 | **0.975** | **+41.7%** |
+| | **F1 Score** | 0.580 | 0.698 | 0.697 | 0.908 | 0.967 | **0.971** | **+39.1%** |
 
 ---
 
@@ -72,9 +72,9 @@
 |------|----|----|----|-----------|---------|----|
 | EMAIL | 24 | 0 | 0 | 1.000 | 1.000 | 1.000 |
 | NAME | 45 | 4 | 2 | 0.918 | 0.957 | 0.938 |
-| COMPANY | 23 | 0 | 2 | 1.000 | 0.920 | 0.958 |
+| COMPANY | 24 | 0 | 1 | 1.000 | 0.960 | 0.980 |
 | ADDRESS | 24 | 0 | 0 | 1.000 | 1.000 | 1.000 |
-| **OVERALL** | **116** | **4** | **4** | **0.967** | **0.967** | **0.967** |
+| **OVERALL** | **117** | **4** | **3** | **0.967** | **0.975** | **0.971** |
 
 ## Synthetic Results (SSN, Credit Card, DOB, IP)
 
@@ -120,8 +120,10 @@ A time-boxed investigation branch (`address-multicell-attempt`) tested whether A
 ### Remaining 4 False Positives (NAME)
 Exact text spans: `"Rajesh"` (conf 0.167, from block `"Name: Rajesh Kumar"`), `"JSW Steel"` (conf 0.398, from block `"Company: JSW Steel"`), `"Kolkata 700091"` (conf 0.220, from block `"Address: Kolkata 700091"`), `"Mumbai 400051"` (conf 0.171, from block `"Company: ICICI Bank, Address: Mumbai 400051"`). Three of four are cross-type misclassifications — GLiNER's NAME model tagging a company name (`"JSW Steel"`) and two address spans (`"Kolkata 700091"`, `"Mumbai 400051"`) as person names. The fourth (`"Rajesh"`) is a partial name span where GLiNER split `"Rajesh Kumar"` into two tokens and only the first-name fragment fell outside the gold span's IoU threshold. Not pursued further as this was the final scoped tuning pass; addressing these would require either cross-detector deduplication (suppressing a NAME prediction when the same span is already claimed with higher confidence by the COMPANY or ADDRESS detector) or tightening the NAME model's confidence threshold above ~0.22 at the cost of potential recall loss. TODO: implement cross-type span priority/deduplication in overlap resolution.
 
-### Remaining 2 False Negatives (COMPANY)
-Exact text spans: `"State Bank"` (from block `"Company: State Bank"`) and `"Tata Steel"` (from block `"Company: Tata Steel, Email: hr@tata.com"`). `"State Bank"` was missed because the gazetteer contains `"STATE BANK OF INDIA"` and `"SBI"` but not the abbreviated form `"State Bank"`, and GLiNER did not reach the 0.28 confidence threshold on this short name. `"Tata Steel"` is present in the gazetteer as `"TATA STEEL"` but was excluded by the email-context filter added in the COMPANY FP fix — the `@` character in `"hr@tata.com"` falls within the 15-character proximity window of the gazetteer match, causing a false exclusion. Not pursued further as this was the final scoped tuning pass. TODO: refine the email-context filter to check whether the `@` is actually *inside* the matched span rather than merely nearby.
+### Remaining 1 False Negative (COMPANY)
+Exact text span: `"State Bank"` (from block `"Company: State Bank"`). Missed because the gazetteer contains `"STATE BANK OF INDIA"` and `"SBI"` but not the abbreviated form `"State Bank"`, and GLiNER did not reach the 0.28 confidence threshold on this short name. Not pursued further as this was the final scoped tuning pass. TODO: add `"STATE BANK"` to the company gazetteer.
+
+The previously-listed `"Tata Steel"` false negative was resolved by tightening the email-context filter from proximity-based (`@` within 15 characters) to containment-based (`@` inside the span or immediately adjacent with no whitespace gap). The original filter false-excluded `"Tata Steel"` because `"hr@tata.com"` happened to sit within 15 characters of the gazetteer match, even though the `@` was in an unrelated email token. The tightened filter correctly distinguishes `"infosys"` inside `"info@infosys.com"` (excluded — `@` immediately adjacent) from `"Tata Steel"` near `"hr@tata.com"` (kept — `@` separated by whitespace and punctuation).
 
 ---
 
