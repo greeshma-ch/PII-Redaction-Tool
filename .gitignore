@@ -26,9 +26,9 @@ ENV/
 Thumbs.db
 desktop.ini
 
-# Project outputs
-output/
-*.redacted.docx
+# Project outputs (keep redacted docx but ignore logs)
+mapping.json
+redaction_log.json
 mapping.json
 redaction_log.json
 eval/evaluation_report.md
