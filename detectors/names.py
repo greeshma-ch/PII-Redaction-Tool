@@ -2,6 +2,17 @@ from typing import List
 from .base import DetectionResult, NAME
 from core.gliner_client import detect
 
+NAME_STOPLIST = {
+    "registrar", "auditor", "lead manager", "book running lead manager",
+    "brlm", "compliance officer", "company secretary", "statutory auditor",
+    "legal counsel", "lead manager to the issue", "registrar to the issue",
+    "managing director", "executive director", "whole time director",
+    "independent director", "non-executive director", "chief executive officer",
+    "chief financial officer", "promoter", "promoters", "chairman", "director",
+    "directors", "auditors", "bankers to the issue", "syndicate member",
+    "book runner", "sponsor bank", "legal advisor", "peer review auditor",
+}
+
 class NameDetector:
     def __init__(self, threshold: float = 0.15):
         self.honorifics = {'mr', 'mrs', 'dr', 'shri', 'ms', 'miss'}
@@ -50,6 +61,8 @@ class NameDetector:
             if ent_text.lower() in self.honorifics:
                 continue
             if ent_text.isupper() and len(ent_text) < 3:
+                continue
+            if ent_text.lower() in NAME_STOPLIST:
                 continue
 
             results.append(DetectionResult(
