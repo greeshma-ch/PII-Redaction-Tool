@@ -118,12 +118,23 @@ All empirical false-positive/false-negative fixes (NAME stoplist, COMPANY email-
 A time-boxed investigation branch (`address-multicell-attempt`) tested whether ADDRESS false negatives were caused by addresses spanning multiple adjacent table cells. Empirical extraction revealed **none** of the 8 FNs were multi-cell splits — all were single-cell `"City PIN"` patterns where GLiNER detected only the PIN fragment. The branch was abandoned, and the actual root cause (PIN-city span merging) was fixed separately in `detectors/addresses.py`.
 
 ### Remaining 4 False Positives (NAME)
-Exact text spans: `"Rajesh"` (conf 0.167, from block `"Name: Rajesh Kumar"`), `"JSW Steel"` (conf 0.398, from block `"Company: JSW Steel"`), `"Kolkata 700091"` (conf 0.220, from block `"Address: Kolkata 700091"`), `"Mumbai 400051"` (conf 0.171, from block `"Company: ICICI Bank, Address: Mumbai 400051"`). Three of four are cross-type misclassifications — GLiNER's NAME model tagging a company name (`"JSW Steel"`) and two address spans (`"Kolkata 700091"`, `"Mumbai 400051"`) as person names. The fourth (`"Rajesh"`) is a partial name span where GLiNER split `"Rajesh Kumar"` into two tokens and only the first-name fragment fell outside the gold span's IoU threshold. Not pursued further as this was the final scoped tuning pass; addressing these would require either cross-detector deduplication (suppressing a NAME prediction when the same span is already claimed with higher confidence by the COMPANY or ADDRESS detector) or tightening the NAME model's confidence threshold above ~0.22 at the cost of potential recall loss. TODO: implement cross-type span priority/deduplication in overlap resolution.
+
+| # | Extracted Text Span | Confidence | Source Block Context | Root Cause Analysis & Potential Fix |
+|---|---|---|---|---|
+| 1 | `"Rajesh"` | 0.167 | `Name: Rajesh Kumar` | **Partial Name Span:** GLiNER split `"Rajesh Kumar"` into two tokens and only the first-name fragment fell outside the gold span's IoU threshold. |
+| 2 | `"JSW Steel"` | 0.398 | `Company: JSW Steel` | **Cross-Type Misclassification:** GLiNER's NAME model tagged a company name as a person name. |
+| 3 | `"Kolkata 700091"` | 0.220 | `Address: Kolkata 700091` | **Cross-Type Misclassification:** GLiNER's NAME model tagged an address span as a person name. |
+| 4 | `"Mumbai 400051"` | 0.171 | `Company: ICICI Bank, Address: Mumbai 400051` | **Cross-Type Misclassification:** GLiNER's NAME model tagged an address span as a person name. |
+
+*Pattern & Fix Note:* 3 of 4 are cross-type misclassifications. Addressing these would require cross-detector span deduplication (suppressing a NAME prediction when the same span is already claimed with higher confidence by COMPANY or ADDRESS) or raising the NAME threshold above ~0.22. (TODO: implement cross-type span priority/deduplication in overlap resolution).
 
 ### Remaining 1 False Negative (COMPANY)
-Exact text span: `"State Bank"` (from block `"Company: State Bank"`). Missed because the gazetteer contains `"STATE BANK OF INDIA"` and `"SBI"` but not the abbreviated form `"State Bank"`, and GLiNER did not reach the 0.28 confidence threshold on this short name. Not pursued further as this was the final scoped tuning pass. TODO: add `"STATE BANK"` to the company gazetteer.
 
-The previously-listed `"Tata Steel"` false negative was resolved by tightening the email-context filter from proximity-based (`@` within 15 characters) to containment-based (`@` inside the span or immediately adjacent with no whitespace gap). The original filter false-excluded `"Tata Steel"` because `"hr@tata.com"` happened to sit within 15 characters of the gazetteer match, even though the `@` was in an unrelated email token. The tightened filter correctly distinguishes `"infosys"` inside `"info@infosys.com"` (excluded — `@` immediately adjacent) from `"Tata Steel"` near `"hr@tata.com"` (kept — `@` separated by whitespace and punctuation).
+| # | Gold Annotated Text | Source Block Context | Root Cause Analysis & Potential Fix |
+|---|---|---|---|
+| 1 | `"State Bank"` | `Company: State Bank` | **Gazetteer Omission & Low Score:** Gazetteer contains `"STATE BANK OF INDIA"` and `"SBI"` but not the abbreviated form `"State Bank"`; GLiNER confidence score was below the 0.28 threshold. (TODO: add `"STATE BANK"` to company gazetteer). |
+
+*Note on Resolved FN:* The previously-listed `"Tata Steel"` false negative was resolved by tightening the email-context filter from proximity-based (`@` within 15 characters) to containment-based (`@` inside the span or immediately adjacent with no whitespace gap). The original filter false-excluded `"Tata Steel"` because `"hr@tata.com"` happened to sit within 15 characters of the gazetteer match, even though the `@` was in an unrelated email token. The tightened filter correctly distinguishes `"infosys"` inside `"info@infosys.com"` (excluded — `@` immediately adjacent) from `"Tata Steel"` near `"hr@tata.com"` (kept — `@` separated by whitespace and punctuation).
 
 ---
 
