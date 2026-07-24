@@ -17,7 +17,6 @@ Upload any `.docx` file → view a color-coded before/after diff → download th
 git clone <repo-url>
 cd pii-redaction-tool
 pip install -r requirements.txt
-python -m spacy download en_core_web_sm
 
 # 2. Run the web UI
 uvicorn api.main:app --host 0.0.0.0 --port 8000
@@ -31,7 +30,7 @@ python run_redaction.py
 
 ## Approach
 
-### Hybrid detection strategy: regex + NER
+### Hybrid detection strategy: regex + GLiNER Zero-Shot NER
 
 | PII Type | Method | Rationale |
 |----------|--------|-----------|
@@ -41,24 +40,9 @@ python run_redaction.py
 | **Credit Card** | Regex + **Luhn checksum** | Format matching alone produces false positives; Luhn validation eliminates them |
 | **DOB** | Regex + context heuristic | Date patterns are ubiquitous; context keywords ("born", "DOB") disambiguate DOBs from other dates |
 | **IP Address** | Regex | IPv4 (with octet validation) and IPv6 — well-defined syntax |
-| **Names** | spaCy NER (`PERSON`) | Free-form text — no regex pattern exists for names; NER is the only viable approach |
-| **Companies** | spaCy NER (`ORG`) | Same reasoning; organization names are irregular and context-dependent |
-| **Addresses** | spaCy NER (`GPE`/`LOC`/`FAC`) + regex | NER handles city/state names; regex handles structured Indian addresses (PIN codes near address keywords) |
-
-**Why not a single approach?**
-- Pure regex can't detect names or companies (too many patterns, too context-dependent)
-- Pure NER misses structured types like emails and IPs (not in NER training data)
-- The hybrid approach uses each method where it performs best
-
-### spaCy model choice
-
-Using `en_core_web_sm` (small model). Tradeoffs:
-- ✅ Fast (~1 min for 450K-char document)
-- ✅ Small footprint for deployment (50 MB vs 400+ MB for transformer model)
-- ⚠️ Lower accuracy on Indian names — the model is trained primarily on Western English text
-- ⚠️ Some organization names misclassified as person names and vice versa
-
-Upgrading to `en_core_web_trf` (transformer model) would improve NER accuracy ~5-10% but would require GPU for reasonable processing times and increase deploy size significantly.
+| **Names** | GLiNER (`knowledgator/gliner-pii-small-v1.0`) | Zero-shot NER — catches single-token Indian names, titled names ("Shri Kamal Sharma"), and table-cell text without sentence context |
+| **Companies** | GLiNER (`knowledgator/gliner-pii-small-v1.0`) | Zero-shot NER — eliminates company-as-person misclassifications, preserves exclusion rules for subject company |
+| **Addresses** | GLiNER (`knowledgator/gliner-pii-small-v1.0`) + PIN regex | Zero-shot location address matching + PIN-code context heuristics |
 
 ---
 
@@ -105,6 +89,7 @@ Upgrading to `en_core_web_trf` (transformer model) would improve NER accuracy ~5
 
 | Module | Purpose |
 |--------|---------|
+| `core/gliner_client.py` | Singleton model loader for `knowledgator/gliner-pii-small-v1.0` (with fallback to edge model) |
 | `detectors/*.py` | One module per PII type, each returns `List[DetectionResult(text, start, end, pii_type, confidence)]` |
 | `core/mapper.py` | Hash-seeded Faker generates deterministic fake values; persists to JSON for audit |
 | `core/redactor.py` | Walks docx paragraph-by-paragraph and table-cell-by-cell; runs detectors; resolves overlaps; replaces text within existing `Run` objects to preserve formatting |
@@ -117,99 +102,33 @@ Upgrading to `en_core_web_trf` (transformer model) would improve NER accuracy ~5
 ## Explicit Design Decisions
 
 ### 1. Company names: selective redaction
-
-**Decision:** Redact organization names detected by NER, **except** the document's own subject company ("KSH International Limited" and its short forms).
-
-**Rationale:** A Red Herring Prospectus mentions its subject company hundreds of times in structural/legal boilerplate. Redacting these would make the document unreadable without adding privacy value — the company name is public information, printed on the cover page.
-
-The `CompanyDetector` maintains a configurable exclusion set (default: `{'KSH International Limited', 'KSH International', 'KSH'}`). Other organization names (banks, auditors, legal firms mentioned as counterparties or affiliations) **are** redacted because they can identify individuals through association.
+**Decision:** Redact organization names detected by GLiNER, **except** the document's own subject company ("KSH International Limited" and its short forms).
+**Rationale:** The prospectus mentions its subject company hundreds of times in structural boilerplate. Redacting these would make the document unreadable.
 
 ### 2. "Order" / "Ticket" numbers: not treated as PII
+Sequential identifiers with no intrinsic personal info are not redacted.
 
-**Decision:** Sequential identifiers like order numbers, ticket numbers, and reference IDs are **not** redacted.
+### 3. Phone numbers: redacted
+Mobile and corporate phone numbers are redacted per assignment requirements.
 
-**Rationale:** These are system-generated identifiers with no intrinsic personal information. Redacting them would produce false positives with no privacy benefit. The credit card detector's Luhn validation specifically prevents long digit sequences (like order numbers) from being misclassified as card numbers.
-
-### 3. Phone numbers: redacted (diverging from the assignment example)
-
-**Decision:** Phone numbers **are** redacted, even though the assignment's one-shot example shows `+91 9876543210 → +91 9876543210` (unchanged).
-
-**Rationale:** The assignment brief explicitly lists phone numbers as one of the 9 PII types to detect and redact. The example appears to be an oversight — phone numbers are clearly PII (especially mobile numbers, which are linked to identity in India via Aadhaar-SIM linking). We treat the type list as authoritative over the single example.
-
-### 4. Missing PII types in the source document
-
-The Red Herring Prospectus contains **no SSNs, credit cards, clean-format phone numbers, or explicit DOBs**. This is expected:
-- India doesn't use SSNs (the equivalent, Aadhaar numbers, have a different format)
-- IPO filings don't contain payment card numbers or birth dates
-- Phone numbers in Indian corporate filings are typically formatted as part of addresses
-
-**How we handle this:** Detectors for SSN/CC/DOB/IP are validated against a **synthetic test set** with known ground truth. Results are clearly labeled as "synthetic validation" in the evaluation report, separate from the in-document metrics.
-
-### 5. Date-of-birth detection: context-gated
-
-**Decision:** Dates are flagged as DOB only when context keywords ("born", "DOB", "date of birth", "birthday") appear within 50 characters before the date, AND the year falls within 1900-2015.
-
-**Rationale:** The prospectus contains hundreds of dates (filing dates, incorporation dates, financial period dates). Flagging all of them as DOBs would produce catastrophic false positives. The context gate reduces false positives to near zero at the cost of missing DOBs without explicit context markers.
+### 4. Missing PII types in source document
+SSN, credit card, DOB, and IP detectors are validated via a synthetic test set with ground truth.
 
 ---
 
-## How to Extend (Adding a New PII Type)
+## Evaluation Benchmark (spaCy vs GLiNER)
 
-1. **Create a detector:** Add `detectors/your_type.py` with a class implementing `detect(text) → List[DetectionResult]`
-2. **Add the PII type constant** to `detectors/base.py`
-3. **Register in the pipeline:** Add an instance to `self.detectors` in `core/redactor.py`
-4. **Add faker generation:** Add a lambda to `_generate_fake()` in `core/mapper.py`
-5. **Write tests:** Add `tests/test_your_type.py`
-6. **Update gold standard:** Add annotated examples to `eval/gold_standard.json`
+See [EVALUATION.md](EVALUATION.md) for detailed evaluation logs and per-type analysis.
 
-Total: ~30 minutes for a new type with clean regex, ~2 hours if NER customization is needed.
+### In-Document Gold Standard Comparison
 
----
-
-## Evaluation Results
-
-See [EVALUATION.md](EVALUATION.md) for full results with specific false positive/false negative examples.
-
-### Summary
-
-**In-document evaluation** (gold standard — names, emails, companies, addresses):
-
-| Type | Precision | Recall | F1 |
-|------|-----------|--------|-----|
-| EMAIL | 1.000 | 1.000 | 1.000 |
-| NAME | 0.562 | 0.574 | 0.568 |
-| COMPANY | 0.481 | 0.520 | 0.500 |
-| ADDRESS | 0.250 | 0.125 | 0.167 |
-| **OVERALL** | **0.604** | **0.558** | **0.580** |
-
-**Synthetic validation** (SSN, credit card, DOB, IP):
-
-| Type | Precision | Recall | F1 |
-|------|-----------|--------|-----|
-| SSN | 1.000 | 0.750 | 0.857 |
-| CREDIT_CARD | 1.000 | 0.667 | 0.800 |
-| DOB | 1.000 | 1.000 | 1.000 |
-| IP_ADDRESS | 1.000 | 1.000 | 1.000 |
-
-### Key observations
-
-- **Emails**: Perfect detection — regex is deterministic for well-formed addresses
-- **Names**: spaCy misses some Indian names (not in its training data) and occasionally tags organizations or titles as persons
-- **Companies**: The exclusion rule works correctly; FPs come from spaCy tagging product names or legal terms as ORGs
-- **Addresses**: Hardest type — Indian addresses are free-form and lack consistent structure. NER catches major cities but misses smaller localities
-- **Regex types**: 100% precision (zero false positives) thanks to format validation (Luhn, area code checks, context gating)
-
----
-
-## Tradeoffs
-
-| Decision | Pro | Con |
-|----------|-----|-----|
-| `en_core_web_sm` over `en_core_web_trf` | Fast, small deploy | ~10% lower NER accuracy |
-| Luhn validation on credit cards | Zero false positives | Misses cards with entry errors |
-| DOB context gating | Near-zero FP on dates | Misses DOBs without context markers |
-| Company exclusion list | Prospectus remains readable | Must be configured per document |
-| Overlap resolution (wider wins) | No double-redaction | May occasionally choose wrong span type |
+| PII Type | spaCy Precision | spaCy Recall | spaCy F1 | GLiNER Precision | GLiNER Recall | GLiNER F1 | Delta (F1) |
+|---|---|---|---|---|---|---|---|
+| **NAME** | 0.562 | 0.574 | 0.568 | 0.464 | **0.957** | **0.625** | **+10.0%** |
+| **COMPANY** | 0.481 | 0.520 | 0.500 | **0.722** | 0.520 | **0.605** | **+21.0%** |
+| **ADDRESS** | 0.250 | 0.125 | 0.167 | **0.727** | **0.667** | **0.696** | **+316.8%** |
+| **EMAIL** | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.0% |
+| **OVERALL** | 0.604 | 0.558 | 0.580 | 0.609 | **0.817** | **0.698** | **+20.3%** |
 
 ---
 
@@ -219,14 +138,14 @@ See [EVALUATION.md](EVALUATION.md) for full results with specific false positive
 ├── api/
 │   └── main.py              # FastAPI app
 ├── core/
+│   ├── gliner_client.py     # GLiNER zero-shot model loader
 │   ├── mapper.py             # Real → fake value mapper
 │   └── redactor.py           # Document-level pipeline
 ├── detectors/
 │   ├── base.py               # DetectionResult type + constants
-│   ├── _nlp_loader.py        # Shared spaCy model singleton
-│   ├── names.py              # PERSON NER
-│   ├── companies.py          # ORG NER with exclusion list
-│   ├── addresses.py          # GPE/LOC NER + regex
+│   ├── names.py              # GLiNER Person Name detector
+│   ├── companies.py          # GLiNER Company detector with exclusion list
+│   ├── addresses.py          # GLiNER Address detector + PIN regex
 │   ├── emails.py             # Regex
 │   ├── phones.py             # Regex (Indian + US + international)
 │   ├── ssn.py                # Regex with area validation
@@ -240,15 +159,9 @@ See [EVALUATION.md](EVALUATION.md) for full results with specific false positive
 ├── frontend/
 │   └── index.html            # Web UI
 ├── tests/                    # Unit tests per detector
-├── output/                   # Generated redacted files (gitignored)
+├── output/                   # Generated redacted files
 ├── requirements.txt
-├── Procfile                  # Render/Heroku process file
+├── Procfile                  # Render process file
 ├── render.yaml               # Render deploy config
 └── README.md
 ```
-
----
-
-## License
-
-Built as a take-home assignment. Not licensed for production use.
