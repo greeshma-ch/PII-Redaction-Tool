@@ -2,7 +2,9 @@ from typing import List
 from .base import DetectionResult, NAME
 from core.gliner_client import detect
 
+# Stoplist built from empirical false positives observed on regulatory filing text
 NAME_STOPLIST = {
+    # Role terms
     "registrar", "auditor", "lead manager", "book running lead manager",
     "brlm", "compliance officer", "company secretary", "statutory auditor",
     "legal counsel", "lead manager to the issue", "registrar to the issue",
@@ -11,6 +13,14 @@ NAME_STOPLIST = {
     "chief financial officer", "promoter", "promoters", "chairman", "director",
     "directors", "auditors", "bankers to the issue", "syndicate member",
     "book runner", "sponsor bank", "legal advisor", "peer review auditor",
+    # Cities / Places misclassified under name
+    "bengaluru", "hyderabad", "chennai", "pune", "ahmedabad", "gurugram",
+    "noida", "kolkata", "mumbai", "delhi", "new delhi",
+    # Company abbreviations misclassified under name
+    "hdfc", "tata", "wipro", "infosys", "axis", "maruti", "bajaj", "icici",
+    "lnt", "jswsteel", "vedanta", "zomato", "paytm", "sbi", "sebi", "bse", "nse",
+    "tata steel", "wipro ltd", "vedanta ltd", "zomato ltd", "paytm india", "ongc india",
+    "ntpc limited", "adani green", "bharti airtel", "sun pharma"
 }
 
 class NameDetector:
@@ -57,6 +67,8 @@ class NameDetector:
             ent_text = stripped.strip()
 
             if len(ent_text) <= 1:
+                continue
+            if "@" in ent_text:  # Skip email strings
                 continue
             if ent_text.lower() in self.honorifics:
                 continue
