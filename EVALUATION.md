@@ -98,6 +98,18 @@
 
 ---
 
+## Limitations & Attempted Improvements
+
+### Multi-cell Address Merging (Attempted and Reverted)
+
+We hypothesized that the remaining ADDRESS false negatives (8 FN, F1 0.696) were caused by addresses spanning multiple adjacent table cells, which the per-cell detection pipeline would miss. A time-boxed investigation branch (`address-multicell-attempt`) was created to test this hypothesis. Empirical extraction of all 8 false negatives revealed that **none** were multi-cell splits. All 8 were short single-cell `"City PIN"` patterns (e.g. `"Gurugram 122002"`, `"Kolkata 700091"`, `"Pune 411005"`, `"Ahmedabad 380006"`) where GLiNER detected only the 6-digit PIN code fragment instead of the full `"City PIN"` span, causing IoU overlap < 0.5 against the gold annotation that included the city name. The branch was abandoned immediately per protocol — multi-cell merging would have addressed zero of the actual false negatives.
+
+**Root cause identified (not yet addressed):** The ADDRESS detector's PIN code regex heuristic fires on standalone PIN codes but does not merge them with the preceding city name token. A targeted fix would be to expand PIN code matches leftward to include the preceding word when it matches a known Indian city name, or to add `"City PIN"` as an explicit GLiNER label. This is logged as a TODO for future improvement.
+
+Additionally, 5 of 6 ADDRESS false positives are standalone PIN codes (`"700091"`, `"380006"`, `"700027"`, `"380009"`, `"201309"`) detected without their city names — the same underlying issue viewed from the precision side. The remaining FP is `"India"` matched inside a company name (`"ONGC India"`).
+
+---
+
 ## Deliverables & Artifacts
 
 - **Redacted Output Document:** `output/Red_Herring_Prospectus_redacted.docx`
