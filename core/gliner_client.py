@@ -13,7 +13,7 @@ def get_model():
     global _model
     if _model is None:
         try:
-            _model = GLiNER.from_pretrained("knowledgator/gliner-pii-small-v1.0")
+            _model = GLiNER.from_pretrained("knowledgator/gliner-pii-edge-v1.0")
         except Exception as e:
             print(f"[gliner_client] Small model load failed: {e}. Falling back to edge model...")
             _model = GLiNER.from_pretrained("knowledgator/gliner-pii-edge-v1.0")
