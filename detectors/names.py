@@ -1,37 +1,62 @@
 from typing import List
 from .base import DetectionResult, NAME
-from ._nlp_loader import get_nlp
+from core.gliner_client import detect
 
 class NameDetector:
-    def __init__(self):
+    def __init__(self, threshold: float = 0.15):
         self.honorifics = {'mr', 'mrs', 'dr', 'shri', 'ms', 'miss'}
+        self.threshold = threshold
+        self.labels = ["person name", "person", "name", "full name"]
 
     def detect(self, text: str) -> List[DetectionResult]:
-        nlp = get_nlp()
-        doc = nlp(text)
+        if not text or not text.strip():
+            return []
+
+        entities = detect(text, labels=self.labels, threshold=self.threshold)
+        if not entities:
+            return []
+
+        # Sort entities by start offset
+        entities.sort(key=lambda x: x["start"])
+
+        # Merge adjacent name tokens (e.g. First Last)
+        merged_spans = []
+        curr_start = entities[0]["start"]
+        curr_end = entities[0]["end"]
+        curr_score = float(entities[0].get("score", 0.85))
+
+        for i in range(1, len(entities)):
+            next_start = entities[i]["start"]
+            next_end = entities[i]["end"]
+            next_score = float(entities[i].get("score", 0.85))
+
+            if next_start - curr_end <= 2:
+                curr_end = max(curr_end, next_end)
+                curr_score = max(curr_score, next_score)
+            else:
+                merged_spans.append((curr_start, curr_end, curr_score))
+                curr_start, curr_end, curr_score = next_start, next_end, next_score
+        merged_spans.append((curr_start, curr_end, curr_score))
+
         results = []
-        for ent in doc.ents:
-            if ent.label_ == 'PERSON':
-                ent_text = ent.text.strip()
-                # Filter: single character
-                if len(ent_text) <= 1:
-                    continue
-                # Filter: common titles/honorifics used alone
-                if ent_text.lower() in self.honorifics:
-                    continue
-                # Filter: all uppercase and less than 3 chars
-                if ent.text.isupper() and len(ent_text) < 3:
-                    continue
-                
-                # Confidence
-                tokens = ent_text.split()
-                confidence = 0.85 if len(tokens) > 1 else 0.70
-                
-                results.append(DetectionResult(
-                    text=ent.text,
-                    start=ent.start_char,
-                    end=ent.end_char,
-                    pii_type=NAME,
-                    confidence=confidence
-                ))
+        for start, end, score in merged_spans:
+            raw = text[start:end]
+            stripped = raw.rstrip(".,;:!?\"'()[]{}")
+            end = start + len(stripped)
+            ent_text = stripped.strip()
+
+            if len(ent_text) <= 1:
+                continue
+            if ent_text.lower() in self.honorifics:
+                continue
+            if ent_text.isupper() and len(ent_text) < 3:
+                continue
+
+            results.append(DetectionResult(
+                text=ent_text,
+                start=start,
+                end=end,
+                pii_type=NAME,
+                confidence=score
+            ))
         return results

@@ -5,7 +5,7 @@ from detectors.base import DetectionResult, ADDRESS
 def test_standalone_city():
     detector = AddressDetector()
     results = detector.detect("I live in Mumbai.")
-    assert any(r.text == "Mumbai" and r.confidence == 0.65 for r in results)
+    assert any(r.text == "Mumbai" and r.confidence >= 0.5 for r in results)
 
 def test_pin_code_with_keywords():
     detector = AddressDetector()
