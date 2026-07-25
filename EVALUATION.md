@@ -76,6 +76,15 @@
 | ADDRESS | 24 | 0 | 0 | 1.000 | 1.000 | 1.000 |
 | **OVERALL** | **117** | **4** | **3** | **0.967** | **0.975** | **0.971** |
 
+**Overall span-level accuracy:** TP / (TP + FP + FN) = 117 / 124 = **0.9435**
+
+*Note: standard classification accuracy (which requires a true-negative count)
+is not well-defined for span-extraction tasks, since "correctly not detecting"
+non-PII text at every possible span isn't a meaningful denominator. Precision,
+recall, and F1 are the standard metrics for NER-style evaluation; the accuracy
+figure above uses the common span-level convention (TP / all predicted-or-gold
+spans) as the closest equivalent.*
+
 ## Synthetic Results (SSN, Credit Card, DOB, IP)
 
 | Type | TP | FP | FN | Precision | Recall | F1 |
