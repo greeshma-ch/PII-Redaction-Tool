@@ -4,7 +4,7 @@ A production-grade tool that reads `.docx` documents, detects **9 types of perso
 
 ## Live Demo
 
-**Deployed at:** `https://pii-redactiontool-401039116273.asia-south1.run.app/` — Google Cloud Run
+**Deployed at:** [https://pii-redactiontool-401039116273.asia-south1.run.app/](https://pii-redactiontool-401039116273.asia-south1.run.app/) — Google Cloud Run
 
 Upload any `.docx` file → view a color-coded before/after diff → download the redacted document.
 
