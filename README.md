@@ -4,9 +4,11 @@ A production-grade tool that reads `.docx` documents, detects **9 types of perso
 
 ## Live Demo
 
-**Deployed at:** *(Render URL — add after deployment)*
+**Deployed at:** `<CLOUD_RUN_URL>` — Google Cloud Run (see [Deployment](#deployment) below)
 
 Upload any `.docx` file → view a color-coded before/after diff → download the redacted document.
+
+> **Note:** The submitted redacted `.docx` deliverable in `output/` was generated via direct pipeline execution, not the live web service — see [Limitations](#limitations) for why.
 
 ---
 
@@ -40,9 +42,11 @@ python run_redaction.py
 | **Credit Card** | Regex + **Luhn checksum** | Format matching alone produces false positives; Luhn validation eliminates them |
 | **DOB** | Regex + context heuristic | Date patterns are ubiquitous; context keywords ("born", "DOB") disambiguate DOBs from other dates |
 | **IP Address** | Regex | IPv4 (with octet validation) and IPv6 — well-defined syntax |
-| **Names** | GLiNER (`knowledgator/gliner-pii-small-v1.0`) | Zero-shot NER — catches single-token Indian names, titled names ("Shri Kamal Sharma"), and table-cell text without sentence context |
-| **Companies** | GLiNER (`knowledgator/gliner-pii-small-v1.0`) | Zero-shot NER — eliminates company-as-person misclassifications, preserves exclusion rules for subject company |
-| **Addresses** | GLiNER (`knowledgator/gliner-pii-small-v1.0`) + PIN regex | Zero-shot location address matching + PIN-code context heuristics |
+| **Names** | GLiNER (`knowledgator/gliner-pii-edge-v1.0`) | Zero-shot NER — catches single-token Indian names, titled names ("Shri Kamal Sharma"), and table-cell text without sentence context |
+| **Companies** | GLiNER (`knowledgator/gliner-pii-edge-v1.0`) | Zero-shot NER — eliminates company-as-person misclassifications, preserves exclusion rules for subject company |
+| **Addresses** | GLiNER (`knowledgator/gliner-pii-edge-v1.0`) + PIN regex | Zero-shot location address matching + PIN-code context heuristics |
+
+> The lightweight `edge` variant is used in production for memory-constrained deployment (see [Deployment](#deployment)); the original evaluation in [EVALUATION.md](EVALUATION.md) was run against this same variant unless otherwise noted.
 
 ---
 
@@ -70,7 +74,8 @@ python run_redaction.py
      │                │                   │
      │   ┌────────────▼───────────────┐   │
      │   │   Resolve overlapping     │   │
-     │   │   spans (wider wins)      │   │
+     │   │   spans within a type     │   │
+     │   │   (wider wins)*           │   │
      │   └────────────┬───────────────┘   │
      │                │                   │
      │   ┌────────────▼───────────────┐   │
@@ -85,11 +90,17 @@ python run_redaction.py
      └────────────────────────────────────┘
 ```
 
+*Overlap resolution currently applies within a single detector's own output.
+Cross-type deduplication (e.g. suppressing a NAME match when the same span is
+already claimed by COMPANY or ADDRESS with higher confidence) is not yet
+implemented — see EVALUATION.md's remaining-false-positives analysis, where
+3 of 4 residual NAME errors are exactly this case.
+
 ### Key modules
 
 | Module | Purpose |
 |--------|---------|
-| `core/gliner_client.py` | Singleton model loader for `knowledgator/gliner-pii-small-v1.0` (with fallback to edge model) |
+| `core/gliner_client.py` | Singleton model loader for `knowledgator/gliner-pii-edge-v1.0` |
 | `detectors/*.py` | One module per PII type, each returns `List[DetectionResult(text, start, end, pii_type, confidence)]` |
 | `core/mapper.py` | Hash-seeded Faker generates deterministic fake values; persists to JSON for audit |
 | `core/redactor.py` | Walks docx paragraph-by-paragraph and table-cell-by-cell; runs detectors; resolves overlaps; replaces text within existing `Run` objects to preserve formatting |
@@ -116,19 +127,27 @@ SSN, credit card, DOB, and IP detectors are validated via a synthetic test set w
 
 ---
 
-## Evaluation Benchmark (spaCy vs GLiNER)
+## Evaluation Results
 
-See [EVALUATION.md](EVALUATION.md) for detailed evaluation logs and per-type analysis.
+Full methodology, false-positive/negative root-cause analysis, and the complete
+six-stage tuning history are in [EVALUATION.md](EVALUATION.md). Summary of the
+final, in-document gold-standard results:
 
-### In-Document Gold Standard Comparison
+| Type | Precision | Recall | F1 |
+|------|-----------|--------|-----|
+| EMAIL | 1.000 | 1.000 | 1.000 |
+| NAME | 0.918 | 0.957 | 0.938 |
+| COMPANY | 1.000 | 0.960 | 0.980 |
+| ADDRESS | 1.000 | 1.000 | 1.000 |
+| **OVERALL** | **0.967** | **0.975** | **0.971** |
 
-| PII Type | spaCy Precision | spaCy Recall | spaCy F1 | GLiNER Precision | GLiNER Recall | GLiNER F1 | Delta (F1) |
-|---|---|---|---|---|---|---|---|
-| **NAME** | 0.562 | 0.574 | 0.568 | 0.464 | **0.957** | **0.625** | **+10.0%** |
-| **COMPANY** | 0.481 | 0.520 | 0.500 | **0.722** | 0.520 | **0.605** | **+21.0%** |
-| **ADDRESS** | 0.250 | 0.125 | 0.167 | **0.727** | **0.667** | **0.696** | **+316.8%** |
-| **EMAIL** | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 1.000 | 0.0% |
-| **OVERALL** | 0.604 | 0.558 | 0.580 | 0.609 | **0.817** | **0.698** | **+20.3%** |
+The detection engine evolved through six stages — spaCy baseline → GLiNER
+zero-shot swap → threshold/label refinements → empirical false-positive root-cause
+fixes → PIN-city address merge → email-boundary filter correction — with overall
+F1 improving from 0.580 to 0.971. Each stage's fix was diagnosed from actual
+false-positive/negative text rather than assumption; see EVALUATION.md for the
+full before/after table and an explicit note on where these numbers may be
+optimistic due to iterative tuning against a fixed evaluation sample.
 
 ---
 
@@ -161,7 +180,51 @@ See [EVALUATION.md](EVALUATION.md) for detailed evaluation logs and per-type ana
 ├── tests/                    # Unit tests per detector
 ├── output/                   # Generated redacted files
 ├── requirements.txt
-├── Procfile                  # Render process file
-├── render.yaml               # Render deploy config
+├── Dockerfile                 # Container build for Cloud Run
 └── README.md
 ```
+
+---
+
+## Deployment
+
+Deployed on **Google Cloud Run** (containerized via the included `Dockerfile`),
+not a buildpack-based host — the GLiNER model's memory footprint exceeded the
+512 MB ceiling of typical free-tier PaaS instances, so Cloud Run was chosen for
+its configurable per-service memory allocation.
+
+```bash
+gcloud run deploy pii-redactiontool \
+  --source . \
+  --region asia-south1 \
+  --memory 4Gi \
+  --cpu 4 \
+  --timeout 1500 \
+  --allow-unauthenticated \
+  --port 8080
+```
+
+The model is loaded lazily on first request (not at container startup), so the
+first request after a cold start includes a one-time model-load delay.
+
+---
+
+## Limitations
+
+- **Processing time on constrained CPU:** full-document processing (~90s on a
+  local dev machine) takes considerably longer on Cloud Run's allocated vCPUs —
+  budget several minutes for a large, table-heavy document like the sample
+  prospectus on a cold instance.
+- **Table cell alignment on the live service:** for documents with very large,
+  multi-page tables using repeated header rows, the live web service has been
+  observed to occasionally misalign redacted content between cells (a
+  `python-docx` table-indexing edge case with repeated headers). The submitted
+  `output/*.docx` deliverable was generated via direct pipeline execution
+  (`python run_redaction.py`), which does not exhibit this issue — only the
+  FastAPI web-upload code path is affected. This is a known open issue, not
+  fixed as of submission.
+- **Tuning generalizability:** see EVALUATION.md's overfitting caveat — several
+  detector refinements were built from, and evaluated against, the same
+  120-block gold-standard sample.
+- **Indian-specific identifiers** (Aadhaar, PAN, passport numbers) are not yet
+  supported; would be straightforward regex additions.
