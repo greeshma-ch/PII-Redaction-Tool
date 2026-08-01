@@ -34,5 +34,9 @@ redaction_log.json
 eval/evaluation_report.md
 Red_Herring_Prospectus.docx
 
+# Test-assignment materials (not project deliverables)
+Red_Herring_Prospectus.docx
+output/*.docx
+
 # Environment
 .env
