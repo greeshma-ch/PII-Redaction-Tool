@@ -56,8 +56,8 @@ python run_redaction.py
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                   FastAPI App                    │
-│                  POST /redact                    │
+│                   FastAPI App                   │
+│                  POST /redact                   │
 └──────────────────────┬──────────────────────────┘
                        │
             ┌──────────▼──────────┐
@@ -66,30 +66,30 @@ python run_redaction.py
             └──────────┬──────────┘
                        │
      ┌─────────────────▼─────────────────┐
-     │         For each paragraph /       │
-     │           table cell:              │
-     │                                    │
-     │   ┌────────────────────────────┐   │
-     │   │   Run all 9 detectors     │   │
-     │   │   → List[DetectionResult] │   │
-     │   └────────────┬───────────────┘   │
-     │                │                   │
-     │   ┌────────────▼───────────────┐   │
-     │   │   Resolve overlapping     │   │
-     │   │   spans within a type     │   │
-     │   │   (wider wins)*           │   │
-     │   └────────────┬───────────────┘   │
-     │                │                   │
-     │   ┌────────────▼───────────────┐   │
-     │   │   PIIMapper: real → fake  │   │
-     │   │   (deterministic, seeded) │   │
-     │   └────────────┬───────────────┘   │
-     │                │                   │
-     │   ┌────────────▼───────────────┐   │
-     │   │   Replace within Runs     │   │
-     │   │   (preserve formatting)   │   │
-     │   └────────────────────────────┘   │
-     └────────────────────────────────────┘
+     │         For each paragraph /      │
+     │           table cell:             │
+     │                                   │
+     │   ┌────────────────────────────┐  │
+     │   │   Run all 9 detectors      │  │
+     │   │   → List[DetectionResult]  │  │
+     │   └────────────┬───────────────┘  │
+     │                │                  │
+     │   ┌────────────▼───────────────┐  │
+     │   │   Resolve overlapping      │  │
+     │   │   spans within a type      │  │
+     │   │   (wider wins)*            │  │
+     │   └────────────┬───────────────┘  │
+     │                │                  │
+     │   ┌────────────▼───────────────┐  │
+     │   │   PIIMapper: real → fake   │  │
+     │   │   (deterministic, seeded)  │  │
+     │   └────────────┬───────────────┘  │
+     │                │                  │
+     │   ┌────────────▼───────────────┐  │
+     │   │   Replace within Runs      │  │
+     │   │   (preserve formatting)    │  │
+     │   └────────────────────────────┘  │
+     └───────────────────────────────────┘
 ```
 
 *Overlap resolution currently applies within a single detector's own output.
