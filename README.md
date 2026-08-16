@@ -4,7 +4,9 @@ A production-grade tool that reads `.docx` documents, detects **9 types of perso
 
 ## Live Demo
 
-**Deployed at:** [https://pii-redactiontool-401039116273.asia-south1.run.app/](https://pii-redactiontool-401039116273.asia-south1.run.app/) — Google Cloud Run
+> **Status:** Render deployment is pending verification. The deployment URL
+> (`<RENDER_URL_HERE>`) will be updated once the free-tier deployment is
+> confirmed to work with GLiNER's memory requirements.
 
 Upload any `.docx` file → view a color-coded before/after diff → download the redacted document.
 
@@ -180,7 +182,8 @@ optimistic due to iterative tuning against a fixed evaluation sample.
 ├── tests/                    # Unit tests per detector
 ├── output/                   # Generated redacted files
 ├── requirements.txt
-├── Dockerfile                 # Container build for Cloud Run
+├── render.yaml                # Render deployment configuration
+├── Dockerfile                 # Container build for deployment
 └── README.md
 ```
 
@@ -188,20 +191,30 @@ optimistic due to iterative tuning against a fixed evaluation sample.
 
 ## Deployment
 
-Deployed on **Google Cloud Run** (containerized via the included `Dockerfile`),
-not a buildpack-based host — the GLiNER model's memory footprint exceeded the
-512 MB ceiling of typical free-tier PaaS instances, so Cloud Run was chosen for
-its configurable per-service memory allocation.
+This application is containerized via the included `Dockerfile`.
+
+### Migration: Cloud Run → Render
+
+The project was originally deployed on **Google Cloud Run**, which provided
+configurable per-service memory allocation needed for the GLiNER model's
+~1 GB memory footprint. However, Cloud Run's pay-per-request billing model
+introduced unpredictable cost exposure, making a persistent free/low-cost
+deployment preferable for a portfolio project.
+
+**Render** is now the intended deployment target using Docker deployment on
+the free tier. This deployment is an experiment — it has **not yet been
+verified** that the GLiNER + PyTorch stack fits within Render free-tier
+resource limits.
+
+**Fallback options** if the free tier proves insufficient:
+- Render paid instance (Starter plan, ~$7/month)
+- Hugging Face Spaces (free tier with 2 vCPU / 16 GB RAM)
+
+### Running via Docker (any platform)
 
 ```bash
-gcloud run deploy pii-redactiontool \
-  --source . \
-  --region asia-south1 \
-  --memory 4Gi \
-  --cpu 4 \
-  --timeout 1500 \
-  --allow-unauthenticated \
-  --port 8080
+docker build -t pii-redaction-tool .
+docker run -p 8080:8080 pii-redaction-tool
 ```
 
 The model is loaded lazily on first request (not at container startup), so the
@@ -212,9 +225,9 @@ first request after a cold start includes a one-time model-load delay.
 ## Limitations
 
 - **Processing time on constrained CPU:** full-document processing (~90s on a
-  local dev machine) takes considerably longer on Cloud Run's allocated vCPUs —
-  budget several minutes for a large, table-heavy document like the sample
-  prospectus on a cold instance.
+  local dev machine) takes considerably longer on resource-constrained cloud
+  instances — budget several minutes for a large, table-heavy document like
+  the sample prospectus on a cold instance.
 - **Table cell alignment on the live service:** for documents with very large,
   multi-page tables using repeated header rows, the live web service has been
   observed to occasionally misalign redacted content between cells (a
