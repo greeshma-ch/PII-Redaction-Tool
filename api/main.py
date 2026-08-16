@@ -3,7 +3,7 @@
 
 Endpoints:
     GET  /           — Serve the frontend UI
-    GET  /health      — Health check for Cloud Run
+    GET  /health      — Health check
     POST /redact      — Upload a .docx, receive redacted .docx + JSON diff
     GET  /download/{filename} — Download a redacted file
 """
