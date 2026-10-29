@@ -4,9 +4,7 @@ A production-grade tool that reads `.docx` documents, detects **9 types of perso
 
 ## Live Demo
 
-> **Status:** Render deployment is pending verification. The deployment URL
-> (`<RENDER_URL_HERE>`) will be updated once the free-tier deployment is
-> confirmed to work with GLiNER's memory requirements.
+https://pii-redaction-tool-457878418443.us-central1.run.app/
 
 Upload any `.docx` file → view a color-coded before/after diff → download the redacted document.
 
